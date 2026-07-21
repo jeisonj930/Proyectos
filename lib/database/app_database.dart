@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../models/calf.dart';
 import '../models/calf_event.dart';
@@ -18,120 +18,13 @@ class AppDatabase {
   AppDatabase._();
 
   static final AppDatabase instance = AppDatabase._();
-  static const _storageKey = 'control_finca_data_v1';
 
-  final List<Calf> _calves = [];
-  final List<CalfEvent> _calfEvents = [];
-  final List<Paddock> _paddocks = [];
-  final List<PaddockEvent> _paddockEvents = [];
-  final List<FarmExpense> _farmExpenses = [];
-  final List<FarmDebtPayment> _farmDebtPayments = [];
-  final List<RotationSession> _rotationSessions = [];
-  final List<RotationMovement> _rotationMovements = [];
+  SupabaseClient get _client => Supabase.instance.client;
 
-  int _nextCalfId = 1;
-  int _nextCalfEventId = 1;
-  int _nextPaddockId = 1;
-  int _nextPaddockEventId = 1;
-  int _nextFarmExpenseId = 1;
-  int _nextFarmDebtPaymentId = 1;
-  int _nextRotationSessionId = 1;
-  int _nextRotationMovementId = 1;
-  double _farmDebtTotalValue = 0;
-  bool _loaded = false;
-
-  Future<void> _ensureLoaded() async {
-    if (_loaded) return;
-
-    final preferences = await SharedPreferences.getInstance();
-    final rawData = preferences.getString(_storageKey);
-    if (rawData == null || rawData.isEmpty) {
-      _loaded = true;
-      return;
-    }
-
-    final data = jsonDecode(rawData) as Map<String, dynamic>;
-    _calves
-      ..clear()
-      ..addAll(_readList(data, 'calves').map(Calf.fromMap));
-    _calfEvents
-      ..clear()
-      ..addAll(_readList(data, 'calf_events').map(CalfEvent.fromMap));
-    _paddocks
-      ..clear()
-      ..addAll(_readList(data, 'paddocks').map(Paddock.fromMap));
-    _paddockEvents
-      ..clear()
-      ..addAll(_readList(data, 'paddock_events').map(PaddockEvent.fromMap));
-    _farmExpenses
-      ..clear()
-      ..addAll(_readList(data, 'farm_expenses').map(FarmExpense.fromMap));
-    _farmDebtPayments
-      ..clear()
-      ..addAll(_readList(data, 'farm_debt_payments').map(FarmDebtPayment.fromMap));
-    _rotationSessions
-      ..clear()
-      ..addAll(_readList(data, 'rotation_sessions').map(RotationSession.fromMap));
-    _rotationMovements
-      ..clear()
-      ..addAll(_readList(data, 'rotation_movements').map(RotationMovement.fromMap));
-
-    _nextCalfId = data['next_calf_id'] as int? ?? _nextId(_calves.map((item) => item.id));
-    _nextCalfEventId =
-        data['next_calf_event_id'] as int? ?? _nextId(_calfEvents.map((item) => item.id));
-    _nextPaddockId =
-        data['next_paddock_id'] as int? ?? _nextId(_paddocks.map((item) => item.id));
-    _nextPaddockEventId = data['next_paddock_event_id'] as int? ??
-        _nextId(_paddockEvents.map((item) => item.id));
-    _nextFarmExpenseId = data['next_farm_expense_id'] as int? ??
-        _nextId(_farmExpenses.map((item) => item.id));
-    _nextFarmDebtPaymentId = data['next_farm_debt_payment_id'] as int? ??
-        _nextId(_farmDebtPayments.map((item) => item.id));
-    _nextRotationSessionId = data['next_rotation_session_id'] as int? ??
-        _nextId(_rotationSessions.map((item) => item.id));
-    _nextRotationMovementId = data['next_rotation_movement_id'] as int? ??
-        _nextId(_rotationMovements.map((item) => item.id));
-    _farmDebtTotalValue = (data['farm_debt_total_value'] as num?)?.toDouble() ?? 0;
-    _loaded = true;
-  }
-
-  List<Map<String, Object?>> _readList(Map<String, dynamic> data, String key) {
-    return (data[key] as List? ?? const [])
-        .map((item) => (item as Map).cast<String, Object?>())
-        .toList();
-  }
-
-  int _nextId(Iterable<int?> ids) {
-    final validIds = ids.whereType<int>();
-    if (validIds.isEmpty) return 1;
-    return validIds.reduce((a, b) => a > b ? a : b) + 1;
-  }
-
-  Future<void> _save() async {
-    final preferences = await SharedPreferences.getInstance();
-    await preferences.setString(_storageKey, jsonEncode(_toBackupMap()));
-  }
-
-  Map<String, Object?> _toBackupMap() {
-    return {
-      'calves': _calves.map((item) => item.toMap()).toList(),
-      'calf_events': _calfEvents.map((item) => item.toMap()).toList(),
-      'paddocks': _paddocks.map((item) => item.toMap()).toList(),
-      'paddock_events': _paddockEvents.map((item) => item.toMap()).toList(),
-      'farm_expenses': _farmExpenses.map((item) => item.toMap()).toList(),
-      'farm_debt_payments': _farmDebtPayments.map((item) => item.toMap()).toList(),
-      'rotation_sessions': _rotationSessions.map((item) => item.toMap()).toList(),
-      'rotation_movements': _rotationMovements.map(_rotationMovementToMap).toList(),
-      'farm_debt_total_value': _farmDebtTotalValue,
-      'next_calf_id': _nextCalfId,
-      'next_calf_event_id': _nextCalfEventId,
-      'next_paddock_id': _nextPaddockId,
-      'next_paddock_event_id': _nextPaddockEventId,
-      'next_farm_expense_id': _nextFarmExpenseId,
-      'next_farm_debt_payment_id': _nextFarmDebtPaymentId,
-      'next_rotation_session_id': _nextRotationSessionId,
-      'next_rotation_movement_id': _nextRotationMovementId,
-    };
+  Map<String, Object?> _withoutId(Map<String, Object?> map) {
+    final copy = Map<String, Object?>.from(map);
+    copy.remove('id');
+    return copy;
   }
 
   Map<String, Object?> _rotationMovementToMap(RotationMovement movement) {
@@ -146,253 +39,206 @@ class AppDatabase {
     };
   }
 
+  List<Map<String, Object?>> _readList(Map<String, dynamic> data, String key) {
+    return (data[key] as List? ?? const [])
+        .map((item) => (item as Map).cast<String, Object?>())
+        .toList();
+  }
+
   Future<List<Calf>> getAllCalves() async {
-    await _ensureLoaded();
-    return List.unmodifiable(_calves);
+    final rows = await _client.from('calves').select().order('id', ascending: false);
+    return rows.map((row) => Calf.fromMap(row)).toList();
   }
 
   Future<Calf?> getCalfById(int id) async {
-    await _ensureLoaded();
-    return _calves.where((calf) => calf.id == id).firstOrNull;
+    final row = await _client.from('calves').select().eq('id', id).maybeSingle();
+    return row == null ? null : Calf.fromMap(row);
   }
 
   Future<int> insertCalf(Calf calf) async {
-    await _ensureLoaded();
-    final id = _nextCalfId++;
-    _calves.insert(0, calf.copyWith(id: id));
-    await _save();
-    return id;
+    final row = await _client
+        .from('calves')
+        .insert(_withoutId(calf.toMap()))
+        .select('id')
+        .single();
+    return row['id'] as int;
   }
 
   Future<int> updateCalf(Calf calf) async {
-    await _ensureLoaded();
-    final index = _calves.indexWhere((item) => item.id == calf.id);
-    if (index == -1) return 0;
-    _calves[index] = calf;
-    await _save();
+    await _client.from('calves').update(_withoutId(calf.toMap())).eq('id', calf.id!);
     return 1;
   }
 
   Future<int> deleteCalf(int id) async {
-    await _ensureLoaded();
-    _calfEvents.removeWhere((event) => event.calfId == id);
-    final before = _calves.length;
-    _calves.removeWhere((calf) => calf.id == id);
-    await _save();
-    return before - _calves.length;
+    await _client.from('calves').delete().eq('id', id);
+    return 1;
   }
 
   Future<List<CalfEvent>> getCalfEvents(int calfId) async {
-    await _ensureLoaded();
-    return _calfEvents.where((event) => event.calfId == calfId).toList();
+    final rows = await _client
+        .from('calf_events')
+        .select()
+        .eq('calf_id', calfId)
+        .order('event_date', ascending: false)
+        .order('id', ascending: false);
+    return rows.map((row) => CalfEvent.fromMap(row)).toList();
   }
 
   Future<double> getCalfInvestmentTotal(int calfId) async {
-    await _ensureLoaded();
-    return _calfEvents
-        .where((event) => event.calfId == calfId && event.amountType == 'expense')
+    final events = await getCalfEvents(calfId);
+    return events
+        .where((event) => event.amountType == 'expense')
         .fold<double>(0.0, (sum, event) => sum + (event.cost ?? 0));
   }
 
   Future<double> getCalfIncomeTotal(int calfId) async {
-    await _ensureLoaded();
-    return _calfEvents
-        .where((event) => event.calfId == calfId && event.amountType == 'income')
+    final events = await getCalfEvents(calfId);
+    return events
+        .where((event) => event.amountType == 'income')
         .fold<double>(0.0, (sum, event) => sum + (event.cost ?? 0));
   }
 
   Future<double> getTotalCalfInvestment() async {
-    await _ensureLoaded();
-    return _calfEvents
-        .where((event) => event.amountType == 'expense')
-        .fold<double>(0.0, (sum, event) => sum + (event.cost ?? 0));
+    final rows = await _client.from('calf_events').select('cost').eq('amount_type', 'expense');
+    return rows.fold<double>(
+      0.0,
+      (sum, row) => sum + ((row['cost'] as num?)?.toDouble() ?? 0),
+    );
   }
 
   Future<double> getTotalCalfIncome() async {
-    await _ensureLoaded();
-    return _calfEvents
-        .where((event) => event.amountType == 'income')
-        .fold<double>(0.0, (sum, event) => sum + (event.cost ?? 0));
+    final rows = await _client.from('calf_events').select('cost').eq('amount_type', 'income');
+    return rows.fold<double>(
+      0.0,
+      (sum, row) => sum + ((row['cost'] as num?)?.toDouble() ?? 0),
+    );
   }
 
   Future<int> getPendingCalfFollowUpsCount() async {
-    await _ensureLoaded();
     final today = DateTime.now().toIso8601String().substring(0, 10);
-    return _calfEvents
-        .where(
-          (event) =>
-              event.nextFollowUpDate != null &&
-              event.nextFollowUpDate!.compareTo(today) <= 0,
-        )
-        .length;
+    final rows = await _client
+        .from('calf_events')
+        .select('id')
+        .not('next_follow_up_date', 'is', null)
+        .lte('next_follow_up_date', today);
+    return rows.length;
   }
 
   Future<int> insertCalfEvent(CalfEvent event) async {
-    await _ensureLoaded();
-    final id = _nextCalfEventId++;
-    _calfEvents.insert(
-      0,
-      CalfEvent(
-        id: id,
-        calfId: event.calfId,
-        eventDate: event.eventDate,
-        eventType: event.eventType,
-        description: event.description,
-        cost: event.cost,
-        amountType: event.amountType,
-        nextFollowUpDate: event.nextFollowUpDate,
-        notes: event.notes,
-      ),
-    );
-    await _save();
-    return id;
+    final row = await _client
+        .from('calf_events')
+        .insert(_withoutId(event.toMap()))
+        .select('id')
+        .single();
+    return row['id'] as int;
   }
 
   Future<int> updateCalfEvent(CalfEvent event) async {
-    await _ensureLoaded();
-    final index = _calfEvents.indexWhere((item) => item.id == event.id);
-    if (index == -1) return 0;
-    _calfEvents[index] = event;
-    await _save();
+    await _client.from('calf_events').update(_withoutId(event.toMap())).eq('id', event.id!);
     return 1;
   }
 
   Future<int> deleteCalfEvent(int id) async {
-    await _ensureLoaded();
-    final before = _calfEvents.length;
-    _calfEvents.removeWhere((event) => event.id == id);
-    await _save();
-    return before - _calfEvents.length;
+    await _client.from('calf_events').delete().eq('id', id);
+    return 1;
   }
 
   Future<List<Paddock>> getAllPaddocks() async {
-    await _ensureLoaded();
-    return List.unmodifiable(_paddocks);
+    final rows = await _client.from('paddocks').select().order('id', ascending: false);
+    return rows.map((row) => Paddock.fromMap(row)).toList();
   }
 
   Future<Paddock?> getPaddockById(int id) async {
-    await _ensureLoaded();
-    return _paddocks.where((paddock) => paddock.id == id).firstOrNull;
+    final row = await _client.from('paddocks').select().eq('id', id).maybeSingle();
+    return row == null ? null : Paddock.fromMap(row);
   }
 
   Future<int> insertPaddock(Paddock paddock) async {
-    await _ensureLoaded();
-    final id = _nextPaddockId++;
-    _paddocks.insert(
-      0,
-      Paddock(
-        id: id,
-        name: paddock.name,
-        description: paddock.description,
-        area: paddock.area,
-        grazingTime: paddock.grazingTime,
-        fertilizers: paddock.fertilizers,
-        expenses: paddock.expenses,
-        notes: paddock.notes,
-        recoveryDays: paddock.recoveryDays,
-        imagePath: paddock.imagePath,
-      ),
-    );
-    await _save();
-    return id;
+    final row = await _client
+        .from('paddocks')
+        .insert(_withoutId(paddock.toMap()))
+        .select('id')
+        .single();
+    return row['id'] as int;
   }
 
   Future<int> updatePaddock(Paddock paddock) async {
-    await _ensureLoaded();
-    final index = _paddocks.indexWhere((item) => item.id == paddock.id);
-    if (index == -1) return 0;
-    _paddocks[index] = paddock;
-    await _save();
+    await _client.from('paddocks').update(_withoutId(paddock.toMap())).eq('id', paddock.id!);
     return 1;
   }
 
   Future<int> deletePaddock(int id) async {
-    await _ensureLoaded();
-    _paddockEvents.removeWhere((event) => event.paddockId == id);
-    final before = _paddocks.length;
-    _paddocks.removeWhere((paddock) => paddock.id == id);
-    await _save();
-    return before - _paddocks.length;
+    await _client.from('paddocks').delete().eq('id', id);
+    return 1;
   }
 
   Future<List<PaddockEvent>> getPaddockEvents(int paddockId) async {
-    await _ensureLoaded();
-    return _paddockEvents.where((event) => event.paddockId == paddockId).toList();
+    final rows = await _client
+        .from('paddock_events')
+        .select()
+        .eq('paddock_id', paddockId)
+        .order('event_date', ascending: false)
+        .order('id', ascending: false);
+    return rows.map((row) => PaddockEvent.fromMap(row)).toList();
   }
 
   Future<double> getPaddockExpenseTotal(int paddockId) async {
-    await _ensureLoaded();
-    return _paddockEvents
-        .where((event) => event.paddockId == paddockId && event.amountType == 'expense')
-        .fold<double>(0.0, (sum, event) => sum + (event.cost ?? 0));
-  }
-
-  Future<double> getPaddockIncomeTotal(int paddockId) async {
-    await _ensureLoaded();
-    return _paddockEvents
-        .where((event) => event.paddockId == paddockId && event.amountType == 'income')
-        .fold<double>(0.0, (sum, event) => sum + (event.cost ?? 0));
-  }
-
-  Future<double> getTotalPaddockExpenses() async {
-    await _ensureLoaded();
-    return _paddockEvents
+    final events = await getPaddockEvents(paddockId);
+    return events
         .where((event) => event.amountType == 'expense')
         .fold<double>(0.0, (sum, event) => sum + (event.cost ?? 0));
   }
 
-  Future<double> getTotalPaddockIncome() async {
-    await _ensureLoaded();
-    return _paddockEvents
+  Future<double> getPaddockIncomeTotal(int paddockId) async {
+    final events = await getPaddockEvents(paddockId);
+    return events
         .where((event) => event.amountType == 'income')
         .fold<double>(0.0, (sum, event) => sum + (event.cost ?? 0));
   }
 
-  Future<int> insertPaddockEvent(PaddockEvent event) async {
-    await _ensureLoaded();
-    final id = _nextPaddockEventId++;
-    _paddockEvents.insert(
-      0,
-      PaddockEvent(
-        id: id,
-        paddockId: event.paddockId,
-        eventDate: event.eventDate,
-        eventType: event.eventType,
-        description: event.description,
-        cost: event.cost,
-        amountType: event.amountType,
-        nextFollowUpDate: event.nextFollowUpDate,
-        notes: event.notes,
-      ),
+  Future<double> getTotalPaddockExpenses() async {
+    final rows = await _client.from('paddock_events').select('cost').eq('amount_type', 'expense');
+    return rows.fold<double>(
+      0.0,
+      (sum, row) => sum + ((row['cost'] as num?)?.toDouble() ?? 0),
     );
-    await _save();
-    return id;
+  }
+
+  Future<double> getTotalPaddockIncome() async {
+    final rows = await _client.from('paddock_events').select('cost').eq('amount_type', 'income');
+    return rows.fold<double>(
+      0.0,
+      (sum, row) => sum + ((row['cost'] as num?)?.toDouble() ?? 0),
+    );
+  }
+
+  Future<int> insertPaddockEvent(PaddockEvent event) async {
+    final row = await _client
+        .from('paddock_events')
+        .insert(_withoutId(event.toMap()))
+        .select('id')
+        .single();
+    return row['id'] as int;
   }
 
   Future<int> updatePaddockEvent(PaddockEvent event) async {
-    await _ensureLoaded();
-    final index = _paddockEvents.indexWhere((item) => item.id == event.id);
-    if (index == -1) return 0;
-    _paddockEvents[index] = event;
-    await _save();
+    await _client
+        .from('paddock_events')
+        .update(_withoutId(event.toMap()))
+        .eq('id', event.id!);
     return 1;
   }
 
   Future<int> deletePaddockEvent(int id) async {
-    await _ensureLoaded();
-    final before = _paddockEvents.length;
-    _paddockEvents.removeWhere((event) => event.id == id);
-    await _save();
-    return before - _paddockEvents.length;
+    await _client.from('paddock_events').delete().eq('id', id);
+    return 1;
   }
 
   Future<List<PaddockState>> getPaddockStates() async {
-    await _ensureLoaded();
-    return _paddocks.map((paddock) {
-      final active = _rotationSessions
-          .where((session) => session.paddockId == paddock.id && session.endedAt == null)
-          .firstOrNull;
-      if (active != null) {
+    final paddocks = await getAllPaddocks();
+    final active = await getActiveRotationSession();
+    return paddocks.map((paddock) {
+      if (active != null && active.paddockId == paddock.id) {
         return PaddockState(
           paddock: paddock,
           status: 'En uso',
@@ -404,112 +250,103 @@ class AppDatabase {
   }
 
   Future<List<FarmExpense>> getAllFarmExpenses() async {
-    await _ensureLoaded();
-    return List.unmodifiable(_farmExpenses);
+    final rows = await _client.from('farm_expenses').select().order('id', ascending: false);
+    return rows.map((row) => FarmExpense.fromMap(row)).toList();
   }
 
   Future<double> getTotalFarmExpenses() async {
-    await _ensureLoaded();
-    return _farmExpenses.fold<double>(0.0, (sum, expense) => sum + expense.amount);
+    final rows = await _client.from('farm_expenses').select('amount');
+    return rows.fold<double>(
+      0.0,
+      (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
+    );
   }
 
   Future<int> insertFarmExpense(FarmExpense expense) async {
-    await _ensureLoaded();
-    final id = _nextFarmExpenseId++;
-    _farmExpenses.insert(
-      0,
-      FarmExpense(
-        id: id,
-        expenseDate: expense.expenseDate,
-        category: expense.category,
-        description: expense.description,
-        amount: expense.amount,
-        supplier: expense.supplier,
-        paymentMethod: expense.paymentMethod,
-        notes: expense.notes,
-      ),
-    );
-    await _save();
-    return id;
+    final row = await _client
+        .from('farm_expenses')
+        .insert(_withoutId(expense.toMap()))
+        .select('id')
+        .single();
+    return row['id'] as int;
   }
 
   Future<int> updateFarmExpense(FarmExpense expense) async {
-    await _ensureLoaded();
-    final index = _farmExpenses.indexWhere((item) => item.id == expense.id);
-    if (index == -1) return 0;
-    _farmExpenses[index] = expense;
-    await _save();
+    await _client
+        .from('farm_expenses')
+        .update(_withoutId(expense.toMap()))
+        .eq('id', expense.id!);
     return 1;
   }
 
   Future<int> deleteFarmExpense(int id) async {
-    await _ensureLoaded();
-    final before = _farmExpenses.length;
-    _farmExpenses.removeWhere((expense) => expense.id == id);
-    await _save();
-    return before - _farmExpenses.length;
+    await _client.from('farm_expenses').delete().eq('id', id);
+    return 1;
   }
 
   Future<FarmDebtSummary> getFarmDebtSummary() async {
-    await _ensureLoaded();
+    final settings = await _client
+        .from('farm_settings')
+        .select('farm_debt_total_value')
+        .eq('id', 1)
+        .maybeSingle();
+    final totalValue = ((settings?['farm_debt_total_value'] as num?) ?? 0).toDouble();
     final paid = await getFarmDebtPaidValue();
-    return FarmDebtSummary(totalValue: _farmDebtTotalValue, paidValue: paid);
+    return FarmDebtSummary(totalValue: totalValue, paidValue: paid);
   }
 
   Future<double> getFarmDebtPaidValue() async {
-    await _ensureLoaded();
-    return _farmDebtPayments.fold<double>(0.0, (sum, payment) => sum + payment.amount);
+    final rows = await _client.from('farm_debt_payments').select('amount');
+    return rows.fold<double>(
+      0.0,
+      (sum, row) => sum + ((row['amount'] as num?)?.toDouble() ?? 0),
+    );
   }
 
   Future<List<FarmDebtPayment>> getFarmDebtPayments() async {
-    await _ensureLoaded();
-    return List.unmodifiable(_farmDebtPayments);
+    final rows = await _client.from('farm_debt_payments').select().order('id', ascending: false);
+    return rows.map((row) => FarmDebtPayment.fromMap(row)).toList();
   }
 
   Future<void> saveFarmDebtTotalValue(double totalValue) async {
-    await _ensureLoaded();
-    _farmDebtTotalValue = totalValue;
-    await _save();
+    await _client.from('farm_settings').upsert({
+      'id': 1,
+      'farm_debt_total_value': totalValue,
+      'updated_at': DateTime.now().toIso8601String(),
+    });
   }
 
   Future<int> insertFarmDebtPayment(FarmDebtPayment payment) async {
-    await _ensureLoaded();
-    final id = _nextFarmDebtPaymentId++;
-    _farmDebtPayments.insert(
-      0,
-      FarmDebtPayment(
-        id: id,
-        paymentDate: payment.paymentDate,
-        amount: payment.amount,
-        description: payment.description,
-        paymentMethod: payment.paymentMethod,
-        notes: payment.notes,
-      ),
-    );
-    await _save();
-    return id;
+    final row = await _client
+        .from('farm_debt_payments')
+        .insert(_withoutId(payment.toMap()))
+        .select('id')
+        .single();
+    return row['id'] as int;
   }
 
   Future<int> updateFarmDebtPayment(FarmDebtPayment payment) async {
-    await _ensureLoaded();
-    final index = _farmDebtPayments.indexWhere((item) => item.id == payment.id);
-    if (index == -1) return 0;
-    _farmDebtPayments[index] = payment;
-    await _save();
+    await _client
+        .from('farm_debt_payments')
+        .update(_withoutId(payment.toMap()))
+        .eq('id', payment.id!);
     return 1;
   }
 
   Future<int> deleteFarmDebtPayment(int id) async {
-    await _ensureLoaded();
-    final before = _farmDebtPayments.length;
-    _farmDebtPayments.removeWhere((payment) => payment.id == id);
-    await _save();
-    return before - _farmDebtPayments.length;
+    await _client.from('farm_debt_payments').delete().eq('id', id);
+    return 1;
   }
 
   Future<RotationSession?> getActiveRotationSession() async {
-    await _ensureLoaded();
-    return _rotationSessions.where((session) => session.endedAt == null).firstOrNull;
+    final row = await _client
+        .from('rotation_sessions')
+        .select()
+        .filter('ended_at', 'is', null)
+        .order('id', ascending: false)
+        .limit(1)
+        .maybeSingle();
+    return row == null ? null : RotationSession.fromMap(row);
   }
 
   Future<int> startRotation({
@@ -517,20 +354,17 @@ class AppDatabase {
     required int plannedDays,
     String? notes,
   }) async {
-    await _ensureLoaded();
-    final id = _nextRotationSessionId++;
-    _rotationSessions.insert(
-      0,
-      RotationSession(
-        id: id,
-        paddockId: paddockId,
-        startedAt: DateTime.now().toIso8601String(),
-        plannedDays: plannedDays,
-        notes: notes,
-      ),
-    );
-    await _save();
-    return id;
+    final row = await _client
+        .from('rotation_sessions')
+        .insert({
+          'paddock_id': paddockId,
+          'started_at': DateTime.now().toIso8601String(),
+          'planned_days': plannedDays,
+          'notes': notes,
+        })
+        .select('id')
+        .single();
+    return row['id'] as int;
   }
 
   Future<int> moveHerd({
@@ -539,73 +373,68 @@ class AppDatabase {
     required int plannedDays,
     String? notes,
   }) async {
-    await _ensureLoaded();
     final now = DateTime.now().toIso8601String();
     final active = await getActiveRotationSession();
     int? effectiveFrom = fromPaddockId;
     if (active != null) {
       effectiveFrom = active.paddockId;
-      final index = _rotationSessions.indexWhere((session) => session.id == active.id);
-      _rotationSessions[index] = RotationSession(
-        id: active.id,
-        paddockId: active.paddockId,
-        startedAt: active.startedAt,
-        plannedDays: active.plannedDays,
-        endedAt: now,
-        notes: active.notes,
-      );
+      await _client
+          .from('rotation_sessions')
+          .update({'ended_at': now})
+          .eq('id', active.id!);
     }
 
-    _rotationMovements.insert(
-      0,
-      RotationMovement(
-        id: _nextRotationMovementId++,
-        fromPaddockId: effectiveFrom,
-        toPaddockId: toPaddockId,
-        fromPaddockName: _paddocks.where((p) => p.id == effectiveFrom).firstOrNull?.name,
-        toPaddockName: _paddocks.where((p) => p.id == toPaddockId).firstOrNull?.name,
-        movedAt: now,
-        notes: notes,
-      ),
-    );
-    final id = _nextRotationSessionId++;
-    _rotationSessions.insert(
-      0,
-      RotationSession(
-        id: id,
-        paddockId: toPaddockId,
-        startedAt: now,
-        plannedDays: plannedDays,
-        notes: notes,
-      ),
-    );
-    await _save();
-    return id;
+    final fromPaddock = effectiveFrom == null ? null : await getPaddockById(effectiveFrom);
+    final toPaddock = await getPaddockById(toPaddockId);
+
+    await _client.from('rotation_movements').insert({
+      'from_paddock_id': effectiveFrom,
+      'to_paddock_id': toPaddockId,
+      'from_paddock_name': fromPaddock?.name,
+      'to_paddock_name': toPaddock?.name,
+      'moved_at': now,
+      'notes': notes,
+    });
+
+    final row = await _client
+        .from('rotation_sessions')
+        .insert({
+          'paddock_id': toPaddockId,
+          'started_at': now,
+          'planned_days': plannedDays,
+          'notes': notes,
+        })
+        .select('id')
+        .single();
+    return row['id'] as int;
   }
 
   Future<List<RotationMovement>> getRecentMovements({int limit = 8}) async {
-    await _ensureLoaded();
-    return _rotationMovements.take(limit).toList();
+    final rows = await _client
+        .from('rotation_movements')
+        .select()
+        .order('id', ascending: false)
+        .limit(limit);
+    return rows.map((row) => RotationMovement.fromMap(row)).toList();
   }
 
   Future<int> getCalvesCount() async {
-    await _ensureLoaded();
-    return _calves.length;
+    final rows = await _client.from('calves').select('id');
+    return rows.length;
   }
 
   Future<int> getPaddocksCount() async {
-    await _ensureLoaded();
-    return _paddocks.length;
+    final rows = await _client.from('paddocks').select('id');
+    return rows.length;
   }
 
   Future<DashboardData> getDashboardData() async {
-    await _ensureLoaded();
     final activeSession = await getActiveRotationSession();
     final farmDebtSummary = await getFarmDebtSummary();
     final paddockStates = await getPaddockStates();
     return DashboardData(
-      calvesCount: _calves.length,
-      paddocksCount: _paddocks.length,
+      calvesCount: await getCalvesCount(),
+      paddocksCount: await getPaddocksCount(),
       totalCalfInvestment: await getTotalCalfInvestment(),
       totalFarmExpenses: await getTotalFarmExpenses(),
       farmDebtPending: farmDebtSummary.pendingValue,
@@ -622,56 +451,60 @@ class AppDatabase {
   }
 
   Future<String> exportBackupJson() async {
-    await _ensureLoaded();
-    const encoder = JsonEncoder.withIndent('  ');
-    return encoder.convert(_toBackupMap());
+    final farmDebt = await getFarmDebtSummary();
+    final encoder = const JsonEncoder.withIndent('  ');
+    return encoder.convert({
+      'calves': (await getAllCalves()).map((item) => item.toMap()).toList(),
+      'calf_events': [
+        for (final calf in await getAllCalves())
+          ...(await getCalfEvents(calf.id!)).map((item) => item.toMap()),
+      ],
+      'paddocks': (await getAllPaddocks()).map((item) => item.toMap()).toList(),
+      'paddock_events': [
+        for (final paddock in await getAllPaddocks())
+          ...(await getPaddockEvents(paddock.id!)).map((item) => item.toMap()),
+      ],
+      'farm_expenses': (await getAllFarmExpenses()).map((item) => item.toMap()).toList(),
+      'farm_debt_payments': (await getFarmDebtPayments()).map((item) => item.toMap()).toList(),
+      'rotation_sessions': [
+        if (await getActiveRotationSession() case final active?)
+          active.toMap(),
+      ],
+      'rotation_movements': (await getRecentMovements(limit: 1000)).map(_rotationMovementToMap).toList(),
+      'farm_debt_total_value': farmDebt.totalValue,
+    });
   }
 
   Future<void> importBackupJson(String backupJson) async {
     final decoded = jsonDecode(backupJson) as Map<String, dynamic>;
 
-    _calves
-      ..clear()
-      ..addAll(_readList(decoded, 'calves').map(Calf.fromMap));
-    _calfEvents
-      ..clear()
-      ..addAll(_readList(decoded, 'calf_events').map(CalfEvent.fromMap));
-    _paddocks
-      ..clear()
-      ..addAll(_readList(decoded, 'paddocks').map(Paddock.fromMap));
-    _paddockEvents
-      ..clear()
-      ..addAll(_readList(decoded, 'paddock_events').map(PaddockEvent.fromMap));
-    _farmExpenses
-      ..clear()
-      ..addAll(_readList(decoded, 'farm_expenses').map(FarmExpense.fromMap));
-    _farmDebtPayments
-      ..clear()
-      ..addAll(_readList(decoded, 'farm_debt_payments').map(FarmDebtPayment.fromMap));
-    _rotationSessions
-      ..clear()
-      ..addAll(_readList(decoded, 'rotation_sessions').map(RotationSession.fromMap));
-    _rotationMovements
-      ..clear()
-      ..addAll(_readList(decoded, 'rotation_movements').map(RotationMovement.fromMap));
+    await saveFarmDebtTotalValue(
+      (decoded['farm_debt_total_value'] as num?)?.toDouble() ?? 0,
+    );
 
-    _nextCalfId = decoded['next_calf_id'] as int? ?? _nextId(_calves.map((item) => item.id));
-    _nextCalfEventId =
-        decoded['next_calf_event_id'] as int? ?? _nextId(_calfEvents.map((item) => item.id));
-    _nextPaddockId =
-        decoded['next_paddock_id'] as int? ?? _nextId(_paddocks.map((item) => item.id));
-    _nextPaddockEventId = decoded['next_paddock_event_id'] as int? ??
-        _nextId(_paddockEvents.map((item) => item.id));
-    _nextFarmExpenseId = decoded['next_farm_expense_id'] as int? ??
-        _nextId(_farmExpenses.map((item) => item.id));
-    _nextFarmDebtPaymentId = decoded['next_farm_debt_payment_id'] as int? ??
-        _nextId(_farmDebtPayments.map((item) => item.id));
-    _nextRotationSessionId = decoded['next_rotation_session_id'] as int? ??
-        _nextId(_rotationSessions.map((item) => item.id));
-    _nextRotationMovementId = decoded['next_rotation_movement_id'] as int? ??
-        _nextId(_rotationMovements.map((item) => item.id));
-    _farmDebtTotalValue = (decoded['farm_debt_total_value'] as num?)?.toDouble() ?? 0;
-    _loaded = true;
-    await _save();
+    for (final calfMap in _readList(decoded, 'calves')) {
+      await _client.from('calves').upsert(calfMap);
+    }
+    for (final eventMap in _readList(decoded, 'calf_events')) {
+      await _client.from('calf_events').upsert(eventMap);
+    }
+    for (final paddockMap in _readList(decoded, 'paddocks')) {
+      await _client.from('paddocks').upsert(paddockMap);
+    }
+    for (final eventMap in _readList(decoded, 'paddock_events')) {
+      await _client.from('paddock_events').upsert(eventMap);
+    }
+    for (final expenseMap in _readList(decoded, 'farm_expenses')) {
+      await _client.from('farm_expenses').upsert(expenseMap);
+    }
+    for (final paymentMap in _readList(decoded, 'farm_debt_payments')) {
+      await _client.from('farm_debt_payments').upsert(paymentMap);
+    }
+    for (final sessionMap in _readList(decoded, 'rotation_sessions')) {
+      await _client.from('rotation_sessions').upsert(sessionMap);
+    }
+    for (final movementMap in _readList(decoded, 'rotation_movements')) {
+      await _client.from('rotation_movements').upsert(movementMap);
+    }
   }
 }
