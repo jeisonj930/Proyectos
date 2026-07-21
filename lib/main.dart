@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'screens/home_menu_screen.dart';
+import 'screens/auth_gate.dart';
 import 'supabase_config.dart';
 
 Future<void> main() async {
@@ -26,7 +26,7 @@ class ControlFincaWebApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF2F6F42)),
         useMaterial3: true,
       ),
-      home: const HomeMenuScreen(),
+      home: const AuthGate(),
     );
   }
 }

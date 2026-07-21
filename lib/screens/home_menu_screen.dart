@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../database/app_database.dart';
 import '../models/dashboard_data.dart';
@@ -71,6 +72,11 @@ class _HomeMenuScreenState extends State<HomeMenuScreen> {
             },
             icon: const Icon(Icons.refresh),
             tooltip: 'Actualizar',
+          ),
+          IconButton(
+            onPressed: () => Supabase.instance.client.auth.signOut(),
+            icon: const Icon(Icons.logout),
+            tooltip: 'Cerrar sesión',
           ),
         ],
       ),
